@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Frustration RSVP Platformer</title>
+  <style>
+    body,
+    canvas {
+      background: lightblue;
+      display: block;
+      margin: 0 auto;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <script>
+
+    function drawText(text, x, y, color = "black", font = "16px monospace") {
+      ctx.fillStyle = color;
+      ctx.font = font;
+      ctx.fillText(text, x, y);
+    }
+
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let gameOver = false;
+    let gravity = 0.3;
+    let moveLeft = false;
+    let moveRight = false;
+
+    const levelWidth = 5000;
+    const levelHeight = 20000;
+
+    let cameraX = 0;
+    let cameraY = 0;
+
+    const player = {
+      x: 100,
+      // x: 1200,
+      y: levelHeight - 150,
+      // y: levelHeight - 2500,
+      width: 40,
+      height: 40,
+      velocityX: 0,
+      velocityY: 0,
+      speed: 5,
+      jumping: false,
+      onGround: false,
+      standingOnPlatform: null, // Track which platform the player is on
+      draw() {
+        ctx.fillStyle = "red";
+        ctx.fillRect(this.x - cameraX, this.y - cameraY, this.width, this.height);
+      },
+      update() {
+        if (moveRight) {
+          this.velocityX = this.speed;
+        } else if (moveLeft) {
+          this.velocityX = -this.speed;
+        } else {
+          this.velocityX = 0;
+        }
+
+        this.x += this.velocityX;
+        this.y += this.velocityY;
+        this.velocityY += gravity;
+
+        this.onGround = false;
+
+        // Ground collision
+        if (this.y + this.height >= levelHeight - 50) {
+          this.y = levelHeight - this.height - 50;
+          this.velocityY = 0;
+          this.jumping = false;
+          this.onGround = true;
+          this.standingOnPlatform = null;
+        }
+
+        // Platform collision
+        platforms.forEach((platform) => {
+          if (
+            this.y + this.height >= platform.y &&
+            this.y + this.height - this.velocityY <= platform.y &&
+            this.x + this.width > platform.x &&
+            this.x < platform.x + platform.width
+          ) {
+            this.y = platform.y - this.height;
+            this.velocityY = 0;
+            this.jumping = false;
+            this.onGround = true;
+            this.standingOnPlatform = null;
+
+            if (platform.special === "golden-rsvp") {
+              gameOver = "gold";
+            } else if (platform.special === "bronze-rsvp") {
+              gameOver = "bronze";
+            }
+          }
+        });
+
+        // Moving platform collision (fixed for vertical movement)
+        // Platform collision with Y-axis tolerance
+        movingPlatforms.forEach((platform) => {
+          // Check if the player is landing on top of the moving platform
+          if (
+            player.y + player.height >= platform.y - 5 && // Small tolerance of 5px for landing
+            player.y + player.height - player.velocityY <= platform.y &&
+            player.x + player.width > platform.x &&
+            player.x < platform.x + platform.width
+          ) {
+            player.y = platform.y - player.height;
+            player.velocityY = 0;
+            player.jumping = false;
+            player.onGround = true;
+            player.standingOnPlatform = platform;  // Properly lock the player to the platform
+          }
+        });
+
+
+        // If standing on a moving platform, move with it
+        if (this.standingOnPlatform) {
+          this.x += this.standingOnPlatform.speedX;
+          this.y += this.standingOnPlatform.speedY;
+        }
+
+        // Keep player inside level boundaries
+        this.x = Math.max(0, Math.min(this.x, levelWidth - this.width));
+        this.y = Math.max(0, Math.min(this.y, levelHeight - this.height));
+
+        // Update camera
+        cameraX = Math.max(0, Math.min(this.x - canvas.width / 2, levelWidth - canvas.width));
+        cameraY = Math.max(0, Math.min(this.y - canvas.height / 2, levelHeight - canvas.height));
+      }
+    };
+
+    // Static platforms
+    const platforms = [
+      { x: 300, y: levelHeight - 300, width: 100, height: 10 },
+      { x: 700, y: levelHeight - 350, width: 100, height: 10 },
+
+
+      { x: 0, y: levelHeight - 800, width: 1000, height: 10 },
+      { x: 300, y: levelHeight - 1500, width: 10, height: 50 },
+      { x: 500, y: levelHeight - 1600, width: 10, height: 50 },
+      { x: 800, y: levelHeight - 1600, width: 200, height: 10 },
+
+
+      { x: 1100, y: levelHeight - 2300, width: 500, height: 10 },
+      { x: 1000, y: levelHeight - 900, width: 300, height: 10 },
+
+
+      { x: 840, y: levelHeight - 1680, width: 20, height: 10 },
+      { x: 940, y: levelHeight - 1780, width: 20, height: 10 },
+      { x: 820, y: levelHeight - 1880, width: 40, height: 10 },
+      { x: 920, y: levelHeight - 1980, width: 40, height: 10 },
+      { x: 920, y: levelHeight - 2080, width: 40, height: 10 },
+      { x: 770, y: levelHeight - 2180, width: 40, height: 10 },
+      { x: 950, y: levelHeight - 2280, width: 40, height: 10 },
+      { x: 1600, y: levelHeight - 2400, width: 100, height: 10 },
+      { x: 2000, y: levelHeight - 2200, width: 30, height: 30 },
+      { x: 2350, y: levelHeight - 2200, width: 30, height: 30 },
+      { x: 2700, y: levelHeight - 2200, width: 10, height: 20 },
+      { x: 3000, y: levelHeight - 2200, width: 400, height: 20, special: "golden-rsvp" },
+
+      { x: 3300, y: levelHeight - 120, width: 300, height: 20, special: "bronze-rsvp" },
+    ];
+
+    // Moving platforms
+    const movingPlatforms = [
+      { x: 200, y: levelHeight - 200, width: 50, height: 10, speedX: 2, speedY: 1, rangeX: 200, rangeY: 50, startX: 200, startY: levelHeight - 200 },
+      { x: 500, y: levelHeight - 300, width: 100, height: 10, speedX: 0, speedY: 2, rangeX: 0, rangeY: 100, startX: 500, startY: levelHeight - 300 },
+      { x: 1000, y: levelHeight - 400, width: 100, height: 10, speedX: 4, speedY: 0, rangeX: 200, rangeY: 0, startX: 1000, startY: levelHeight - 400 },
+      { x: 1200, y: levelHeight - 700, width: 100, height: 10, speedX: 0, speedY: 2, rangeX: 0, rangeY: 100, startX: 1400, startY: levelHeight - 600 },
+
+      { x: 400, y: levelHeight - 900, width: 100, height: 10, speedX: 0, speedY: 2, rangeX: 0, rangeY: 100, startX: 400, startY: levelHeight - 900 },
+      { x: 250, y: levelHeight - 1100, width: 75, height: 10, speedX: 0, speedY: 2, rangeX: 0, rangeY: 300, startX: 250, startY: levelHeight - 1100 },
+
+      { x: 500, y: levelHeight - 1300, width: 75, height: 10, speedX: 6, speedY: 2, rangeX: 300, rangeY: 200, startX: 500, startY: levelHeight - 1300 },
+      { x: 1000, y: levelHeight - 2100, width: 100, height: 10, speedX: 0, speedY: 2, rangeX: 0, rangeY: 1000, startX: 1000, startY: levelHeight - 2100 },
+
+      { x: 2700, y: levelHeight - 2100, width: 100, height: 20, speedX: 20, speedY: 2, rangeX: 300, rangeY: 0, startX: 2700, startY: levelHeight - 2100 },
+    ];
+
+    function updateMovingPlatforms() {
+      movingPlatforms.forEach(platform => {
+        platform.x += platform.speedX;
+        platform.y += platform.speedY;
+
+        // Reverse direction at range limit
+        if (Math.abs(platform.x - platform.startX) >= platform.rangeX) {
+          platform.speedX *= -1;
+        }
+        if (Math.abs(platform.y - platform.startY) >= platform.rangeY) {
+          platform.speedY *= -1;
+        }
+      });
+    }
+
+    function drawPlatforms() {
+      platforms.forEach(platform => {
+        ctx.fillStyle = "#67724f";
+        if (platform.special === "golden-rsvp") {
+          ctx.fillStyle = "#ffd700";
+        } else if (platform.special === "bronze-rsvp") {
+          ctx.fillStyle = "#cd7f32";
+        }
+        ctx.fillRect(platform.x - cameraX, platform.y - cameraY, platform.width, platform.height);
+      });
+
+      // Draw moving platforms
+      ctx.fillStyle = "#67724f";
+      movingPlatforms.forEach(platform => {
+        ctx.fillRect(platform.x - cameraX, platform.y - cameraY, platform.width, platform.height);
+      });
+    }
+
+    // Draw the fixed checkerboard background
+    function drawBackground() {
+      const stripeWidth = 100; // Width of each stripe
+      const stripeHeight = 100; // Height of each stripe
+      const colors = ["#b1c5a9", "#d2d8bd"];
+
+      // Draw background checkerboard
+      for (let y = 0; y < levelHeight; y += stripeHeight) {
+        for (let x = 0; x < levelWidth; x += stripeWidth) {
+          const colorIndex = ((Math.floor(x / stripeWidth) + Math.floor(y / stripeHeight)) % 2);
+          ctx.fillStyle = colors[colorIndex];
+          ctx.fillRect(x - cameraX, y - cameraY, stripeWidth, stripeHeight);
+        }
+      }
+    }
+
+    function resizeCanvas() {
+      const minWidth = 320; // Minimum width for mobile
+      const minHeight = 480; // Minimum height for mobile
+
+      const width = Math.max(minWidth, window.innerWidth);
+      const height = Math.max(minHeight, window.innerHeight);
+
+      canvas.width = width;
+      canvas.height = height;
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    let jumpKeyPressed = false; // Prevent multiple jumps while holding the key
+
+    document.addEventListener("keydown", (event) => {
+      if (event.code === "ArrowRight" || event.code === "KeyD") moveRight = true;
+      if (event.code === "ArrowLeft" || event.code === "KeyA") moveLeft = true;
+
+      if ((event.code === "Space" || event.code === "ArrowUp" || event.code === "KeyW") && player.onGround && !jumpKeyPressed) {
+        player.velocityY = -10;
+        player.jumping = true;
+        player.standingOnPlatform = null;
+        jumpKeyPressed = true; // Mark jump key as pressed
+      }
+    });
+
+    document.addEventListener("keyup", (event) => {
+      if (event.code === "ArrowRight" || event.code === "KeyD") moveRight = false;
+      if (event.code === "ArrowLeft" || event.code === "KeyA") moveLeft = false;
+      if (event.code === "Space" || event.code === "ArrowUp" || event.code === "KeyW") jumpKeyPressed = false; // Reset when key is released
+    });
+
+
+    let isTouching = false; // Flag to check if the user is currently touching the screen
+
+    canvas.addEventListener("touchstart", (event) => {
+      const touch = event.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+
+      const middle = canvas.width / 2;
+      if (touchStartX < middle) {
+        moveLeft = true;
+        moveRight = false;
+      } else {
+        moveRight = true;
+        moveLeft = false;
+      }
+
+      isTouching = true; // The user has started touching
+    });
+
+    canvas.addEventListener("touchmove", (event) => {
+      if (!isTouching) return; // If the user is not touching, do nothing
+
+      const touch = event.touches[0];
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
+
+      // Swipe up to jump
+      if (deltaY < -30 && player.onGround) {
+        player.velocityY = -10;
+        player.jumping = true;
+        player.standingOnPlatform = null;
+      }
+
+      // Move left or right based on horizontal position of the touch
+      if (touch.clientX < canvas.width / 2) {
+        moveLeft = true; // Move left if the touch is on the left side
+        moveRight = false;
+      } else {
+        moveRight = true; // Move right if the touch is on the right side
+        moveLeft = false;
+      }
+    });
+
+    canvas.addEventListener("touchend", () => {
+      moveLeft = false;
+      moveRight = false;
+      isTouching = false; // The user is no longer touching the screen
+    });
+
+    function endGame(rsvpType) {
+      // Create overlay
+      const overlay = document.createElement("div");
+      overlay.style.position = "fixed";
+      overlay.style.top = "0";
+      overlay.style.left = "0";
+      overlay.style.width = "100vw";
+      overlay.style.height = "100vh";
+      overlay.style.background = "rgba(0, 0, 0, 0.8)";
+      overlay.style.color = "white";
+      overlay.style.display = "flex";
+      overlay.style.flexDirection = "column";
+      overlay.style.justifyContent = "center";
+      overlay.style.alignItems = "center";
+      overlay.style.textAlign = "center";
+      overlay.style.fontFamily = "Arial, sans-serif";
+      overlay.style.zIndex = "9999";
+
+      let message = "";
+      let formLink = atob('aHR0cHM6Ly9mb3Jtcy5nbGUvVUc4MU5MQzhvNlB6VlNwejY=');
+
+      if (rsvpType === "gold") {
+        message = "Incredible! You've won the GOLD RSVP and a special t-shirt!";
+        formLink = atob('aHR0cHM6Ly9mb3Jtcy5nbGUvYkJnUW92U2NrR3JiNjdZSjY=');
+      } else {
+        message = "Great job! You've won the BRONZE RSVP!";
+      }
+
+      // Create elements
+      const msgElement = document.createElement("h1");
+      msgElement.textContent = message;
+
+      const formButton = document.createElement("a");
+      formButton.href = formLink;
+      formButton.textContent = "Claim Your RSVP";
+      formButton.target = "_blank";
+      formButton.style.marginTop = "20px";
+      formButton.style.padding = "15px 30px";
+      formButton.style.fontSize = "18px";
+      formButton.style.background = "#cd7f32";
+      if (rsvpType === "gold") {
+          formButton.style.background = "gold";
+      }
+      formButton.style.color = "black";
+      formButton.style.border = "none";
+      formButton.style.borderRadius = "5px";
+      formButton.style.textDecoration = "none";
+      formButton.style.fontWeight = "bold";
+
+      const playAgainButton = document.createElement("button");
+      playAgainButton.textContent = "Play Again";
+      playAgainButton.style.marginTop = "20px";
+      playAgainButton.style.padding = "10px 20px";
+      playAgainButton.style.fontSize = "16px";
+      playAgainButton.style.cursor = "pointer";
+      playAgainButton.style.border = "none";
+      playAgainButton.style.borderRadius = "5px";
+      playAgainButton.style.background = "white";
+      playAgainButton.style.color = "black";
+      playAgainButton.onclick = () => {
+        overlay.remove();
+        location.reload(); // Restart the game
+      };
+
+      // Append elements
+      overlay.appendChild(msgElement);
+      overlay.appendChild(formButton);
+      overlay.appendChild(playAgainButton);
+      document.body.appendChild(overlay);
+    }
+
+    const playerImage = new Image();
+    playerImage.src = "data:image/png;base64,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";
+
+    playerImage.onload = () => {
+      player.draw = function () {
+        ctx.drawImage(playerImage, this.x - cameraX, this.y - cameraY, this.width, this.height);
+      };
+    };
+
+
+
+    let lastTime = 0;
+    const fps = 60;
+    const frameDuration = 1000 / fps; // Duration of each frame in milliseconds
+
+    function gameLoop(timestamp) {
+      if (gameOver) {
+        endGame(gameOver);
+        return;
+      }
+
+      const deltaTime = timestamp - lastTime;
+
+      if (deltaTime >= frameDuration) {
+        lastTime = timestamp - (deltaTime % frameDuration); // Adjust lastTime to maintain consistent frame timing
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw the fixed checkerboard background first
+        drawBackground();
+
+        ctx.fillStyle = "#E4E6D9";
+        ctx.fillRect(-cameraX, levelHeight - 275 - cameraY, 700, 250);
+        drawText("Frustration RSVP Platformer v0.2", 10 - cameraX, levelHeight - 235 - cameraY);
+        drawText("Keyboard: WASD, space bar, or arrow keys", 10 - cameraX, levelHeight - 185 - cameraY, "black", "12px monospace");
+        drawText("Mobile: hold left or right side of screen", 10 - cameraX, levelHeight - 140 - cameraY, "black", "12px monospace");
+        drawText("to move sideways, swipe up to jump (sorry)", 10 - cameraX, levelHeight - 115 - cameraY, "black", "12px monospace");
+
+        ctx.fillStyle = "#E4E6D9";
+        ctx.fillRect(500 - cameraX, levelHeight - 600 - cameraY, 550, 100);
+        drawText("Collision detection on moving platforms is sketchy.", 525 - cameraX, levelHeight - 550 - cameraY, "black", "16px monospace");
+        drawText("Those who prevail shall be rewarded.", 525 - cameraX, levelHeight - 525 - cameraY, "black", "16px monospace");
+
+        // Ground
+        ctx.fillStyle = "#67724f";
+        ctx.fillRect(0 - cameraX, levelHeight - 50 - cameraY, levelWidth, 50);
+        drawText("Frustrated? A bronze tier RSVP is available by running to the right --->", 10 - cameraX, levelHeight - 20 - cameraY, "white", "13px monospace");
+        drawText("Are you sure? The golden RSVP, up in the heavens, grants you a special gift at the wedding! Last chance to turn back!", 2000 - cameraX, levelHeight - 20 - cameraY, "white", "16px monospace");
+
+        ctx.fillStyle = "#E4E6D9";
+        ctx.fillRect(1000 - cameraX, levelHeight - 2550 - cameraY, 500, 100);
+        drawText("Golden RSVP leaps of faith ------>", 1100 - cameraX, levelHeight - 2500 - cameraY);
+
+        ctx.fillStyle = "#cd7f32";
+        ctx.fillRect(3300 - cameraX, levelHeight - 350 - cameraY, 300, 100);
+        drawText("Jump on the platform below", 3325 - cameraX, levelHeight - 300 - cameraY);
+        drawText("to secure a bronze RSVP", 3325 - cameraX, levelHeight - 275 - cameraY);
+
+        drawText("Wow!", 2925 - cameraX, levelHeight - 2350 - cameraY, "black", "24px monospace");
+
+
+        drawText("-->", 1700 - cameraX, levelHeight - 2525 - cameraY, "black", "24px monospace");
+        drawText("-->", 2025 - cameraX, levelHeight - 2325 - cameraY, "black", "24px monospace");
+        drawText("-->", 2375 - cameraX, levelHeight - 2325 - cameraY, "black", "24px monospace");
+        drawText("-->", 2675 - cameraX, levelHeight - 2325 - cameraY, "black", "24px monospace");
+
+        updateMovingPlatforms();
+        drawPlatforms();
+        player.update();
+        player.draw();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop(0);
+  </script>
+</body>
+
+</html>
